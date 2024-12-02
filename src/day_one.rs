@@ -1,61 +1,54 @@
-// Answer: 2285373
-
 use std::fs::File;
 use std::io::{prelude::*, BufReader};
 use anyhow::Result;
-use std::collections::BTreeSet;
+use std::collections::HashMap;
 
 const INPUT_PATH: &str = "src/inputs/day_one/puzzle_input.txt";
 const RESULTS_PATH: &str = "src/outputs/day_one/puzzle_output.txt";
 
-pub fn solve() -> Result<()>{
+pub fn solve() -> Result<()> {
+    let file = File::open(INPUT_PATH)?;
+    let reader = BufReader::new(file);
 
-  let file = File::open(INPUT_PATH)?;
-  let reader = BufReader::new(file);
+    // Pre-allocate vectors with capacity to avoid reallocations
+    let (mut left_column, mut right_column) = reader.lines()
+        .try_fold((Vec::new(), Vec::new()), |mut acc, line| -> Result<_> {
+            let line = line?;
+            let mut parts = line.split("   ");
+            // Using if let to avoid unwrap and get better error handling
+            if let (Some(left), Some(right)) = (parts.next(), parts.next()) {
+                acc.0.push(left.parse::<u64>()?);
+                acc.1.push(right.parse::<u64>()?);
+            }
+            Ok(acc)
+        })?;
 
-  let mut left_column: Vec<u64> = Vec::new();
-  let mut right_column: Vec<u64> = Vec::new();
+    // Part 1: Calculate total distance
+    left_column.sort_unstable(); // sort_unstable is faster than stable sort
+    right_column.sort_unstable();
 
-  for line in reader.lines(){
-    let line = line?;
-    let location_ids: Vec<&str> = line.split("   ").collect();
-    left_column.push(location_ids[0].parse::<u64>()?);
-    right_column.push(location_ids[1].parse::<u64>()?);
-  }
+    let total_distance: u64 = left_column.iter()
+        .zip(right_column.iter())
+        .map(|(l, r)| if l > r { l - r } else { r - l })
+        .sum();
 
-  left_column.sort();
-  right_column.sort();
+    // Part 2: Calculate similarity score
+    // Use HashMap for O(1) lookups instead of nested iteration
+    let frequency_map: HashMap<u64, u64> = right_column.iter()
+        .fold(HashMap::new(), |mut map, &num| {
+            *map.entry(num).or_default() += 1;
+            map
+        });
 
-  let mut results: Vec<u64> = Vec::new();
+    let similarity_score: u64 = left_column.iter()
+        .map(|&num| num * frequency_map.get(&num).unwrap_or(&0))
+        .sum();
 
-  for (index, id) in left_column.iter().enumerate(){
-    let rc_id = &right_column[index];
-    if id > rc_id { results.push(id-rc_id) } else { results.push(rc_id-id);}
-  };
+    // Write results
+    std::fs::write(
+        RESULTS_PATH,
+        format!("part 1:{}\npart 2:{}", total_distance, similarity_score)
+    )?;
 
-  let mut common_scores: u64 = 0;
-  left_column.iter().for_each(|lc|{
-    let mut tally: u64 = 0;
-    right_column.iter().for_each(|rc|{
-      if lc == rc {
-        tally += 1;
-      }
-    });
-    if tally > 0 {
-      common_scores += lc * tally;
-    }
-  });
-
-  let mut final_answer: u64 = 0;
-  results.iter().for_each(|answer|{
-    final_answer += *answer;
-  });
-
-  let mut output = File::create(RESULTS_PATH)?;
-  let write_result = write!(output, "part 1:{}\npart 2:{}", final_answer.to_string(), common_scores.to_string());
-  if write_result.is_err() {
-    println!("Error writing answer to file");
-  }
-
-  Ok(())
+    Ok(())
 }
