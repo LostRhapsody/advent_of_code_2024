@@ -12,7 +12,7 @@ fn main() {
         2 => match day_two::solve() {
             Ok(_) => println!("Puzzle two done"),
             Err(err) => println!("Puzzle two hit an error: {}", err),
-        }
+        },
         _ => (),
     };
 }
